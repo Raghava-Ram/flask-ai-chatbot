@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Chatbot</h1>
+            <p>Ask me anything! Powered by GPT-4.1</p>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-history" id="chatHistory">
+                <!-- Chat history will be loaded here -->
+            </div>
+
+            <div class="input-section">
+                <div class="input-group">
+                    <input type="text" id="userInput" placeholder="Type your message here..." maxlength="500">
+                    <button id="sendBtn" onclick="sendMessage()">Send</button>
+                </div>
+                <div class="controls">
+                    <button id="newChatBtn" onclick="startNewChat()">Start New Chat</button>
+                    <button id="clearHistoryBtn" onclick="clearHistory()">Clear History</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>AI is thinking...</p>
+        </div>
+    </div>
+
+    <script>
+        // Load chat history on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChatHistory();
+        });
+
+        // Handle Enter key in input
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Show loading
+            showLoading(true);
+            
+            // Add user message to chat
+            addMessageToChat('user', message);
+            input.value = '';
+
+            // Send to backend
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                
+                if (data.error) {
+                    addMessageToChat('bot', 'Error: ' + data.error);
+                } else {
+                    addMessageToChat('bot', data.response);
+                    updateChatHistory(data.history);
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                addMessageToChat('bot', 'Error: Could not connect to the server.');
+                console.error('Error:', error);
+            });
+        }
+
+        function addMessageToChat(sender, message) {
+            const chatHistory = document.getElementById('chatHistory');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message;
+            
+            messageDiv.appendChild(contentDiv);
+            chatHistory.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function loadChatHistory() {
+            fetch('/get_history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.history) {
+                    data.history.forEach(entry => {
+                        addMessageToChat('user', entry.user);
+                        addMessageToChat('bot', entry.bot);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading history:', error);
+            });
+        }
+
+        function updateChatHistory(history) {
+            // This function can be used to update the history display if needed
+            console.log('Chat history updated:', history);
+        }
+
+        function startNewChat() {
+            document.getElementById('chatHistory').innerHTML = '';
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all chat history?')) {
+                fetch('/clear_history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        document.getElementById('chatHistory').innerHTML = '';
+                        alert('Chat history cleared successfully!');
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Error clearing history');
+                    console.error('Error:', error);
+                });
+            }
+        }
+
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            if (show) {
+                loading.style.display = 'flex';
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
+            } else {
+                loading.style.display = 'none';
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            }
+        }
+    </script>
+</body>
+</html> 
